@@ -39,6 +39,9 @@ export default function App() {
   const [dnsLeakProtection, setDnsLeakProtection] = useState<boolean>(true);
   const [killSwitch, setKillSwitch] = useState<boolean>(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [autoConnect, setAutoConnect] = useState<boolean>(() => {
+    return localStorage.getItem('pboy_autoconnect') === 'true';
+  });
   
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -50,6 +53,17 @@ export default function App() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
+  const formatTime = (secs: number): string => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return [
+      h > 0 ? String(h).padStart(2, '0') : null,
+      String(m).padStart(2, '0'),
+      String(s).padStart(2, '0')
+    ].filter(Boolean).join(':');
+  };
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
@@ -105,6 +119,17 @@ export default function App() {
   };
 
   useEffect(() => {
+    localStorage.setItem('pboy_autoconnect', String(autoConnect));
+  }, [autoConnect]);
+
+  useEffect(() => {
+    if (autoConnect) {
+      handleToggleVpn();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (isConnected) {
       timerRef.current = setInterval(() => {
         setTelemetry(prev => {
@@ -132,24 +157,24 @@ export default function App() {
         className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 opacity-60"
         style={{ backgroundImage: "url('/ghost-priest.jpg'), linear-gradient(to bottom, #111, #000)" }}
       />
-      <div className="fixed inset-0 z-0 bg-black/40 backdrop-blur-md" />
+      <div className="fixed inset-0 z-0 bg-black/40 " />
 
       {/* Main Fluid Phone View Container - Material 3 Expressive rounding */}
-      <div className="w-full h-[100dvh] md:h-[844px] max-w-[400px] border-white/10 md:border md:rounded-[3rem] shadow-2xl relative z-10 flex flex-col backdrop-blur-3xl overflow-hidden md:ring-1 ring-white/5 mx-auto bg-black/20">
+      <div className="w-full h-[100dvh] md:h-[844px] max-w-[400px] border-white/10 md:border md:rounded-[3rem] shadow-2xl relative z-10 flex flex-col  overflow-hidden md:ring-1 ring-white/5 mx-auto bg-black/20">
         
         {/* Glow Effects */}
-        <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-rose-600/10 blur-[100px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-rose-600/5 rounded-full pointer-events-none" />
+        <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-blue-600/5 rounded-full pointer-events-none" />
 
         {/* Top Header */}
         <header className="px-6 pt-14 pb-4 flex items-center justify-between z-20 relative">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-[1rem] bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-xl shadow-xl shadow-black/20 mix-blend-screen">
+            <div className="w-12 h-12 rounded-[1rem] bg-white/10 border border-white/20 flex items-center justify-center  shadow-xl shadow-black/20 mix-blend-screen">
               <span className="font-display font-black text-base tracking-widest text-white text-shadow">404</span>
             </div>
             <div>
               <h1 className="font-display text-[16px] font-bold tracking-widest text-white uppercase drop-shadow-md">
-                Pboy
+                404 NOT FOUND
               </h1>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isConnected ? 'bg-emerald-400' : isConnecting ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
@@ -163,7 +188,7 @@ export default function App() {
           <div className="relative">
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-white/80 hover:text-white backdrop-blur-xl transition-all hover:bg-white/15 cursor-pointer active:scale-95 shadow-xl"
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-white/80 hover:text-white  transition-all hover:bg-white/15 cursor-pointer active:scale-95 shadow-xl"
             >
               <MoreVertical className="w-6 h-6" />
             </button>
@@ -177,7 +202,7 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="absolute right-0 mt-3 w-56 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[1.5rem] shadow-2xl overflow-hidden z-40 py-2"
+                    className="absolute right-0 mt-3 w-56 bg-black/60  border border-white/10 rounded-[1.5rem] shadow-2xl overflow-hidden z-40 py-2"
                   >
                     <button onClick={handleImportConfig} className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display">
                       <Download className="w-4 h-4 text-emerald-400" /> Import from Clipboard
@@ -219,11 +244,21 @@ export default function App() {
                       boxShadow: ['0 0 0px rgba(16, 185, 129, 0)', '0 0 100px rgba(16, 185, 129, 0.5)', '0 0 0px rgba(16, 185, 129, 0)'],
                     } : {}}
                     transition={{ duration: 4, repeat: Infinity }}
-                    className="relative w-48 h-48 rounded-[3rem] flex flex-col items-center justify-center bg-white/[0.03] border border-white/10 backdrop-blur-2xl shadow-2xl"
+                    className="relative w-48 h-48 rounded-[3rem] flex flex-col items-center justify-center bg-white/[0.03] border border-white/10  shadow-2xl"
                   >
                     <Shield className={`w-16 h-16 stroke-[1.5] ${isConnected ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(16,185,129,0.8)]' : isConnecting ? 'text-amber-400' : 'text-white/30'}`} />
                     <span className="font-mono text-[11px] text-white/60 tracking-[0.2em] mt-4 uppercase font-bold">{isConnected ? 'Encrypted' : 'Standby'}</span>
                     
+                    {isConnected && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-2 text-emerald-400 font-mono text-xl tracking-wider font-light"
+                      >
+                        {formatTime(telemetry.connectedSeconds)}
+                      </motion.div>
+                    )}
+
                     {isConnecting && (
                       <motion.div 
                         animate={{ rotate: 360 }}
@@ -235,35 +270,35 @@ export default function App() {
                 </div>
 
                 {/* Expressive Metrics Area */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/10 backdrop-blur-2xl border border-white/15 p-6 rounded-[2.5rem] relative overflow-hidden shadow-xl shadow-black/20">
-                    <div className="absolute top-5 right-5 opacity-40 bg-white/10 p-2 rounded-xl">
-                      <ArrowDownRight className="w-5 h-5 text-emerald-300" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/10 border border-white/15 p-4 rounded-3xl relative overflow-hidden shadow-lg shadow-black/20">
+                    <div className="absolute top-4 right-4 opacity-40 bg-white/10 p-1.5 rounded-lg">
+                      <ArrowDownRight className="w-4 h-4 text-emerald-300" />
                     </div>
-                    <p className="text-[11px] font-mono font-medium text-white/70 tracking-widest uppercase">RX / DL</p>
-                    <div className="flex items-baseline gap-1 mt-4">
-                      <span className="text-3xl font-display font-medium text-white shadow-sm">
+                    <p className="text-[10px] font-mono font-medium text-white/70 tracking-widest uppercase">RX / DL</p>
+                    <div className="flex items-baseline gap-1 mt-2">
+                      <span className="text-2xl font-display font-medium text-white shadow-sm">
                         {isConnected ? telemetry.speedDown : '0.0'}
                       </span>
-                      <span className="text-[11px] text-white/60 font-mono">MB/s</span>
+                      <span className="text-[10px] text-white/60 font-mono">MB/s</span>
                     </div>
                   </div>
 
-                  <div className="bg-white/10 backdrop-blur-2xl border border-white/15 p-6 rounded-[2.5rem] relative overflow-hidden shadow-xl shadow-black/20">
-                    <div className="absolute top-5 right-5 opacity-40 bg-white/10 p-2 rounded-xl">
-                      <ArrowUpRight className="w-5 h-5 text-sky-300" />
+                  <div className="bg-white/10 border border-white/15 p-4 rounded-3xl relative overflow-hidden shadow-lg shadow-black/20">
+                    <div className="absolute top-4 right-4 opacity-40 bg-white/10 p-1.5 rounded-lg">
+                      <ArrowUpRight className="w-4 h-4 text-sky-300" />
                     </div>
-                    <p className="text-[11px] font-mono font-medium text-white/70 tracking-widest uppercase">TX / UP</p>
-                    <div className="flex items-baseline gap-1 mt-4">
-                      <span className="text-3xl font-display font-medium text-white shadow-sm">
+                    <p className="text-[10px] font-mono font-medium text-white/70 tracking-widest uppercase">TX / UP</p>
+                    <div className="flex items-baseline gap-1 mt-2">
+                      <span className="text-2xl font-display font-medium text-white shadow-sm">
                         {isConnected ? telemetry.speedUp : '0.0'}
                       </span>
-                      <span className="text-[11px] text-white/60 font-mono">MB/s</span>
+                      <span className="text-[10px] text-white/60 font-mono">MB/s</span>
                     </div>
                   </div>
                   
                   {/* Selector Blocks - Material 3 Expressive Tonal Surfaces */}
-                  <div className="col-span-2 bg-white/5 hover:bg-white/10 backdrop-blur-3xl border border-white/15 p-5 rounded-[2.5rem] flex items-center justify-between cursor-pointer shadow-xl shadow-black/30 group active:scale-[0.98] transition-all" onClick={() => setActiveTab('protocols')}>
+                  <div className="col-span-2 bg-white/5 hover:bg-white/10  border border-white/15 p-5 rounded-[2.5rem] flex items-center justify-between cursor-pointer shadow-xl shadow-black/30 group active:scale-[0.98] transition-all" onClick={() => setActiveTab('protocols')}>
                     <div className="flex items-center gap-5">
                       <div className="w-14 h-14 rounded-[1.5rem] bg-white/10 flex items-center justify-center border border-white/10 shadow-inner group-hover:bg-white/20 transition-colors">
                         <Lock className="w-6 h-6 text-white/90" />
@@ -276,7 +311,7 @@ export default function App() {
                     <ChevronRight className="w-6 h-6 text-white/40 group-hover:text-white/80 transition-colors" />
                   </div>
 
-                  <div className="col-span-2 bg-white/5 hover:bg-white/10 backdrop-blur-3xl border border-white/15 p-5 rounded-[2.5rem] flex items-center justify-between cursor-pointer shadow-xl shadow-black/30 group active:scale-[0.98] transition-all" onClick={() => setActiveTab('servers')}>
+                  <div className="col-span-2 bg-white/5 hover:bg-white/10  border border-white/15 p-5 rounded-[2.5rem] flex items-center justify-between cursor-pointer shadow-xl shadow-black/30 group active:scale-[0.98] transition-all" onClick={() => setActiveTab('servers')}>
                     <div className="flex items-center gap-5">
                       <div className="w-14 h-14 rounded-[1.5rem] bg-white/10 flex items-center justify-center border border-white/10 text-3xl shadow-inner group-hover:bg-white/20 transition-colors">
                         {selectedServer.flag}
@@ -302,7 +337,7 @@ export default function App() {
                 className="flex flex-col gap-4"
               >
                 <div className="flex items-center gap-4 mb-3">
-                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/10">
+                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center  border border-white/10">
                     <ChevronRight className="w-6 h-6 rotate-180" />
                   </button>
                   <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Protocols</h2>
@@ -312,7 +347,7 @@ export default function App() {
                   return (
                     <div 
                       key={protocol.id}
-                      className={`p-6 rounded-[2.5rem] border transition-all cursor-pointer backdrop-blur-2xl ${
+                      className={`p-6 rounded-[2.5rem] border transition-all cursor-pointer  ${
                         isSelected 
                           ? 'bg-emerald-500/10 border-emerald-400/40 shadow-[0_4px_30px_rgba(16,185,129,0.2)]' 
                           : 'bg-white/5 border-white/10 hover:bg-white/15'
@@ -340,7 +375,7 @@ export default function App() {
                 className="flex flex-col gap-4"
               >
                 <div className="flex items-center gap-4 mb-3">
-                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/10">
+                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center  border border-white/10">
                     <ChevronRight className="w-6 h-6 rotate-180" />
                   </button>
                   <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Nodes</h2>
@@ -351,7 +386,7 @@ export default function App() {
                     <div 
                       key={server.id}
                       onClick={() => setSelectedServer(server)}
-                      className={`p-5 rounded-[2.5rem] border transition-all cursor-pointer backdrop-blur-2xl flex items-center justify-between ${
+                      className={`p-5 rounded-[2.5rem] border transition-all cursor-pointer  flex items-center justify-between ${
                         isSelected 
                           ? 'bg-sky-500/10 border-sky-400/40 shadow-[0_4px_30px_rgba(14,165,233,0.2)]' 
                           : 'bg-white/5 border-white/10 hover:bg-white/15'
@@ -383,13 +418,13 @@ export default function App() {
                 className="flex flex-col gap-4"
               >
                 <div className="flex items-center gap-4 mb-3">
-                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/10">
+                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center  border border-white/10">
                     <ChevronRight className="w-6 h-6 rotate-180" />
                   </button>
                   <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Preferences</h2>
                 </div>
                 
-                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] flex items-center justify-between shadow-xl">
+                <div className="bg-white/5  border border-white/10 p-6 rounded-[2.5rem] flex items-center justify-between shadow-xl">
                   <div>
                     <h4 className="text-[15px] font-display font-medium text-white mb-1">Kill Switch</h4>
                     <p className="text-[12px] text-white/50 font-mono">Block traffic on disconnect</p>
@@ -399,13 +434,23 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] flex items-center justify-between shadow-xl">
+                <div className="bg-white/5  border border-white/10 p-6 rounded-[2.5rem] flex items-center justify-between shadow-xl">
                   <div>
                     <h4 className="text-[15px] font-display font-medium text-white mb-1">Secure DNS</h4>
                     <p className="text-[12px] text-white/50 font-mono">Prevent query leaks</p>
                   </div>
                   <button onClick={() => setDnsLeakProtection(!dnsLeakProtection)}>
                     {dnsLeakProtection ? <ToggleRight className="w-10 h-10 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> : <ToggleLeft className="w-10 h-10 text-white/30" />}
+                  </button>
+                </div>
+
+                <div className="bg-white/5  border border-white/10 p-6 rounded-[2.5rem] flex items-center justify-between shadow-xl">
+                  <div>
+                    <h4 className="text-[15px] font-display font-medium text-white mb-1">Auto-Connect</h4>
+                    <p className="text-[12px] text-white/50 font-mono">Connect on app launch</p>
+                  </div>
+                  <button onClick={() => setAutoConnect(!autoConnect)}>
+                    {autoConnect ? <ToggleRight className="w-10 h-10 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> : <ToggleLeft className="w-10 h-10 text-white/30" />}
                   </button>
                 </div>
               </motion.div>
@@ -419,7 +464,7 @@ export default function App() {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[88%] max-w-[360px] z-50">
           <div className="relative">
              {/* Dynamic Expressive Glow */}
-            <div className={`absolute -inset-2 blur-3xl opacity-50 rounded-full transition-colors duration-1000 ${
+            <div className={`absolute -inset-2  opacity-50 rounded-full transition-colors duration-1000 ${
               isConnected ? 'bg-emerald-500' : isConnecting ? 'bg-amber-500' : 'bg-rose-600'
             }`} />
             
@@ -428,7 +473,7 @@ export default function App() {
               whileTap={{ scale: 0.95 }}
               onClick={handleToggleVpn}
               disabled={isConnecting}
-              className={`relative w-full overflow-hidden rounded-[3rem] flex items-center justify-center gap-3 py-6 transition-all duration-700 border backdrop-blur-3xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${
+              className={`relative w-full overflow-hidden rounded-[3rem] flex items-center justify-center gap-3 py-6 transition-all duration-700 border  shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${
                 isConnected 
                   ? 'bg-emerald-500/20 border-emerald-400/50 text-white' 
                   : isConnecting
@@ -447,7 +492,7 @@ export default function App() {
                 <Zap className="w-6 h-6 text-white drop-shadow-md z-10" />
               )}
               <span className="font-display font-medium tracking-[0.2em] text-[15px] uppercase drop-shadow-md z-10">
-                {isConnected ? 'Disconnect' : isConnecting ? 'Connecting' : 'Ghost Protocol'}
+                {isConnected ? 'Disconnect' : isConnecting ? 'Connecting' : '4o4 Connect His Voice'}
               </span>
             </motion.button>
           </div>
@@ -460,7 +505,7 @@ export default function App() {
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 bg-black/80 backdrop-blur-lg border border-white/20 text-white text-sm font-display px-6 py-3 rounded-full shadow-2xl whitespace-nowrap"
+              className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 bg-black/80  border border-white/20 text-white text-sm font-display px-6 py-3 rounded-full shadow-2xl whitespace-nowrap"
             >
               {toastMessage}
             </motion.div>
