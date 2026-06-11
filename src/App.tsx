@@ -9,12 +9,27 @@ import {
   Settings, Radio, Activity, Terminal, RefreshCw, Sliders, 
   MapPin, Zap, ChevronRight, Check, AlertCircle, Key, Info, 
   HardDrive, Lock, Unlock, HelpCircle, FileText, ToggleLeft, ToggleRight,
-  Wifi, Globe, Play, Square, Award, ArrowUpRight, ArrowDownRight, MoreVertical, Copy, Download, Upload
+  Wifi, Globe, Play, Square, Award, ArrowUpRight, ArrowDownRight, MoreVertical, Copy, Download, Upload, QrCode, Scan, Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProtocolId, VpnProtocol, VpnServer, TelemetryMetrics, LogEntry } from './types';
+import { QRCodeSVG } from 'qrcode.react';
+import { BrowserQRCodeReader } from '@zxing/browser';
 
 // Constants & Mock Data
+const CONFIG_TYPES = [
+  { id: 'vmess', name: 'VMess', badge: 'XRAY' },
+  { id: 'vless', name: 'VLess', badge: 'XRAY' },
+  { id: 'socks', name: 'Socks', badge: 'XRAY' },
+  { id: 'trojan', name: 'Trojan', badge: 'XRAY' },
+  { id: 'ssr', name: 'ShadowsocksR', badge: 'XRAY' },
+  { id: 'ss2022', name: 'Shadowsocks2022', badge: 'XRAY' },
+  { id: 'wireguard', name: 'WireGuard', badge: 'XRAY' },
+  { id: 'raw_json', name: 'RAW config (JSON)', badge: 'XRAY' },
+  { id: 'ssh', name: 'SSH', badge: 'NATIVE' },
+  { id: 'dnstt_ssh', name: 'DNSTT + SSH', badge: 'NATIVE' }
+];
+
 const PROTOCOLS: VpnProtocol[] = [
   { id: 'wireguard', name: 'WireGuard® v2', shortDesc: 'State-of-the-art cryptography. Max throughput.', cipher: 'ChaCha20', keySize: 256, handshake: 'NoiseIK', hash: 'BLAKE2s', defaultPort: 51820, overheadBytes: 32, securityRating: 5 },
   { id: 'openvpn_udp', name: 'OpenVPN (UDP)', shortDesc: 'Industry gold-standard for streaming.', cipher: 'AES-256-GCM', keySize: 256, handshake: 'ECDH', hash: 'SHA-384', defaultPort: 1194, overheadBytes: 64, securityRating: 5 },
@@ -35,13 +50,25 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [selectedProtocol, setSelectedProtocol] = useState<VpnProtocol>(PROTOCOLS[0]);
   const [selectedServer, setSelectedServer] = useState<VpnServer>(SERVERS[1]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'protocols' | 'servers' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'protocols' | 'servers' | 'settings' | 'add_config' | 'share_qr' | 'scan_qr'>('dashboard');
   const [dnsLeakProtection, setDnsLeakProtection] = useState<boolean>(true);
   const [killSwitch, setKillSwitch] = useState<boolean>(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [autoConnect, setAutoConnect] = useState<boolean>(() => {
     return localStorage.getItem('pboy_autoconnect') === 'true';
   });
+  const [customServers, setCustomServers] = useState<VpnServer[]>([]);
+  const [newConfigType, setNewConfigType] = useState<string>('vmess');
+  const [newConfigName, setNewConfigName] = useState('');
+  const [newConfigHost, setNewConfigHost] = useState('');
+  const [newConfigPort, setNewConfigPort] = useState('22');
+  const [newConfigUser, setNewConfigUser] = useState('');
+  const [newConfigPass, setNewConfigPass] = useState('');
+  const [newConfigVmess, setNewConfigVmess] = useState('');
+  const [qrConfigString, setQrConfigString] = useState('');
+  const [isCameraScanning, setIsCameraScanning] = useState(false);
+  const scannerControlsRef = useRef<any>(null);
+
   
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -96,6 +123,89 @@ export default function App() {
       // Fallback
       showToast("Config exported to clipboard! (Mocked)");
     }
+  };
+
+  const handleShowQr = () => {
+    setIsMenuOpen(false);
+    setQrConfigString(`${selectedProtocol.id === 'ssh' ? 'ssh' : 'vmess'}://pboy_proxy_config_${Date.now()}`);
+    setActiveTab('share_qr');
+  };
+
+  const handleQrScanned = (result: string) => {
+    if (result.includes('vmess://') || result.includes('vless://') || result.includes('ssh://')) {
+      showToast("Config imported from QR successfully!");
+      setSelectedProtocol(result.includes('ssh') ? PROTOCOLS[4] : PROTOCOLS[3]);
+      setActiveTab('dashboard');
+    } else {
+      showToast("Invalid QR config format.");
+    }
+  };
+
+  const startCameraScan = () => {
+    setIsCameraScanning(true);
+    setTimeout(() => {
+      const codeReader = new BrowserQRCodeReader();
+      const videoInput = document.getElementById('qr-video') as HTMLVideoElement;
+      if (videoInput) {
+        codeReader.decodeFromVideoDevice(undefined, videoInput, (result, err) => {
+          if (result) {
+            handleQrScanned(result.getText());
+            if (scannerControlsRef.current) scannerControlsRef.current.stop();
+            setIsCameraScanning(false);
+          }
+        }).then(controls => {
+          scannerControlsRef.current = controls;
+        }).catch(err => {
+          showToast("Camera access denied or failed.");
+          setIsCameraScanning(false);
+        });
+      }
+    }, 100);
+  };
+
+  const stopCameraScan = () => {
+    if (scannerControlsRef.current) scannerControlsRef.current.stop();
+    setIsCameraScanning(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scannerControlsRef.current) scannerControlsRef.current.stop();
+    };
+  }, []);
+
+  const handleSaveConfig = () => {
+    const newServer: VpnServer = {
+      id: `custom-${Date.now()}`,
+      country: 'Custom',
+      city: newConfigName || 'Custom Node',
+      flag: '🔧',
+      ipAddress: newConfigHost || '0.0.0.0',
+      load: 0,
+      basePing: Math.floor(Math.random() * 50) + 10,
+      region: 'Americas'
+    };
+    setCustomServers([...customServers, newServer]);
+    setSelectedServer(newServer);
+    
+    if (newConfigType === 'ssh' || newConfigType === 'dnstt_ssh') {
+      setSelectedProtocol(PROTOCOLS.find(p => p.id === 'ssh') || PROTOCOLS[0]);
+    } else if (newConfigType === 'wireguard') {
+      setSelectedProtocol(PROTOCOLS.find(p => p.id === 'wireguard') || PROTOCOLS[0]);
+    } else {
+      setSelectedProtocol(PROTOCOLS.find(p => p.id === 'v2ray') || PROTOCOLS[0]);
+    }
+
+    // Reset Form
+    setNewConfigName('');
+    setNewConfigHost('');
+    setNewConfigPort('22');
+    setNewConfigUser('');
+    setNewConfigPass('');
+    setNewConfigVmess('');
+
+    showToast("Custom configuration saved!");
+    setActiveTab('servers');
   };
 
   const handleToggleVpn = () => {
@@ -205,10 +315,26 @@ export default function App() {
                     className="absolute right-0 mt-3 w-56 bg-black/60  border border-white/10 rounded-[1.5rem] shadow-2xl overflow-hidden z-40 py-2"
                   >
                     <button onClick={handleImportConfig} className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display">
-                      <Download className="w-4 h-4 text-emerald-400" /> Import from Clipboard
+                      <Download className="w-4 h-4 text-emerald-400" /> Import clipboard
+                    </button>
+                    <button 
+                      onClick={() => { setIsMenuOpen(false); setActiveTab('scan_qr'); }} 
+                      className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display"
+                    >
+                      <Scan className="w-4 h-4 text-amber-400" /> Scan QR Code
+                    </button>
+                    <div className="h-px bg-white/10 my-1 mx-3" />
+                    <button onClick={handleShowQr} className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display">
+                      <QrCode className="w-4 h-4 text-emerald-400" /> Share via QR
                     </button>
                     <button onClick={handleExportConfig} className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display">
-                      <Upload className="w-4 h-4 text-sky-400" /> Export Config
+                      <Upload className="w-4 h-4 text-sky-400" /> Export clipboard
+                    </button>
+                    <button 
+                      onClick={() => { setIsMenuOpen(false); setActiveTab('add_config'); }} 
+                      className="w-full px-5 py-3 flex items-center gap-3 text-sm text-left text-white/90 hover:bg-white/10 transition-colors font-display"
+                    >
+                      <Settings className="w-4 h-4 text-purple-400" /> Add Custom SSH
                     </button>
                     <div className="h-px bg-white/10 my-1 mx-3" />
                     <button 
@@ -380,7 +506,7 @@ export default function App() {
                   </button>
                   <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Nodes</h2>
                 </div>
-                {SERVERS.map((server) => {
+                {[...SERVERS, ...customServers].map((server) => {
                   const isSelected = selectedServer.id === server.id;
                   return (
                     <div 
@@ -452,6 +578,209 @@ export default function App() {
                   <button onClick={() => setAutoConnect(!autoConnect)}>
                     {autoConnect ? <ToggleRight className="w-10 h-10 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> : <ToggleLeft className="w-10 h-10 text-white/30" />}
                   </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Add Custom Config Tab */}
+            {activeTab === 'add_config' && (
+              <motion.div 
+                key="add_config"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="flex items-center gap-4 mb-3">
+                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center  border border-white/10">
+                    <ChevronRight className="w-6 h-6 rotate-180" />
+                  </button>
+                  <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Add Config</h2>
+                </div>
+                
+                <div className="bg-white/5 border border-white/10 p-5 rounded-[2.5rem] flex flex-col gap-4 shadow-xl">
+                  
+                  <div>
+                    <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Protocol Type</label>
+                    <div className="relative">
+                      <select
+                        className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none appearance-none font-display"
+                        value={newConfigType}
+                        onChange={(e) => setNewConfigType(e.target.value)}
+                      >
+                        {CONFIG_TYPES.map(type => (
+                          <option key={type.id} value={type.id} className="bg-slate-900 text-white">
+                            {type.name} ({type.badge})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronRight className="w-5 h-5 absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-white/50 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Alias / Name</label>
+                    <input 
+                      type="text"
+                      className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                      placeholder="e.g. My Private Box"
+                      value={newConfigName}
+                      onChange={(e) => setNewConfigName(e.target.value)}
+                    />
+                  </div>
+
+                  {newConfigType === 'ssh' || newConfigType === 'dnstt_ssh' ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-2">
+                          <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Host / IP</label>
+                          <input 
+                            type="text"
+                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                            placeholder="192.168.1.1"
+                            value={newConfigHost}
+                            onChange={(e) => setNewConfigHost(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Port</label>
+                          <input 
+                            type="text"
+                            className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                            placeholder="22"
+                            value={newConfigPort}
+                            onChange={(e) => setNewConfigPort(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Username</label>
+                        <input 
+                          type="text"
+                          className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                          placeholder="root"
+                          value={newConfigUser}
+                          onChange={(e) => setNewConfigUser(e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Password / Key</label>
+                        <input 
+                          type="password"
+                          className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                          placeholder="••••••••"
+                          value={newConfigPass}
+                          onChange={(e) => setNewConfigPass(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="text-[11px] font-mono font-medium text-white/50 tracking-widest uppercase ml-2 block mb-1">Config / URI</label>
+                      <textarea 
+                        className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50 min-h-[100px] resize-none"
+                        placeholder={`${newConfigType}://...`}
+                        value={newConfigVmess}
+                        onChange={(e) => setNewConfigVmess(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handleSaveConfig}
+                    className="w-full mt-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 py-3 rounded-2xl font-display font-medium transition-all"
+                  >
+                    Save Configuration
+                  </button>
+
+                </div>
+
+              </motion.div>
+            )}
+
+            {/* Share QR Tab */}
+            {activeTab === 'share_qr' && (
+              <motion.div 
+                key="share_qr"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="flex items-center gap-4 mb-3">
+                  <button onClick={() => setActiveTab('dashboard')} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center  border border-white/10">
+                    <ChevronRight className="w-6 h-6 rotate-180" />
+                  </button>
+                  <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Share QR</h2>
+                </div>
+                
+                <div className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] flex flex-col items-center gap-6 shadow-xl text-center">
+                  <div className="bg-white p-4 rounded-3xl">
+                    <QRCodeSVG value={qrConfigString} size={200} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-display text-white mb-2">Scan to Connect</h3>
+                    <p className="text-sm font-mono text-white/50">Point your camera at this code<br/>to import the current node configuration.</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Scan QR Tab */}
+            {activeTab === 'scan_qr' && (
+              <motion.div 
+                key="scan_qr"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex flex-col gap-4 h-full relative"
+              >
+                <div className="flex items-center gap-4 mb-3 z-10 relative">
+                  <button onClick={() => { setActiveTab('dashboard'); stopCameraScan(); }} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                    <ChevronRight className="w-6 h-6 rotate-180" />
+                  </button>
+                  <h2 className="text-base font-display font-semibold text-white uppercase tracking-[0.15em]">Scan QR</h2>
+                </div>
+                
+                <div className="bg-black/40 border border-white/10 p-4 rounded-[2.5rem] flex flex-col items-center gap-6 shadow-xl flex-1 relative overflow-hidden">
+                  
+                  <div className="relative w-full aspect-square bg-black/60 rounded-3xl overflow-hidden mt-4 flex items-center justify-center border border-white/5">
+                    <video 
+                      id="qr-video" 
+                      className={`w-full h-full object-cover ${!isCameraScanning ? 'hidden' : ''}`}
+                    ></video>
+                    
+                    {!isCameraScanning && (
+                      <div className="flex flex-col items-center text-white/30 gap-4">
+                        <Camera className="w-12 h-12" />
+                        <span className="font-mono text-xs uppercase tracking-widest">Camera Ready</span>
+                      </div>
+                    )}
+                    
+                    {/* Scanner Overlay UI */}
+                    <div className="absolute inset-x-8 top-1/2 -mt-[1px] h-[2px] bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,1)] z-10 animate-pulse origin-center" />
+                    <div className="absolute inset-4 rounded-2xl border-2 border-white/20 border-dashed pointer-events-none" />
+                  </div>
+
+                  {!isCameraScanning ? (
+                    <button 
+                      onClick={startCameraScan}
+                      className="w-full mt-auto bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 py-4 rounded-2xl font-display font-medium transition-all"
+                    >
+                      Start Camera Scan
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={stopCameraScan}
+                      className="w-full mt-auto bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-400 py-4 rounded-2xl font-display font-medium transition-all"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  
+                  {/* File fallback could go here if needed, but per request scan via camera adds full app feel */}
                 </div>
               </motion.div>
             )}

@@ -1,6 +1,10 @@
 {
   "name": "404 NOT FOUND",
   "description": "Minimalist Android VPN dashboard simulation with real-time encryption metrics and protocol configuration.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
